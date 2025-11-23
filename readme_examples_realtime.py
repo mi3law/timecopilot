@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import json
 import pandas as pd
+import numpy as np
 
 # An asyncio-safe queue to pass data between coroutines
 data_queue_async = asyncio.Queue()
@@ -44,7 +45,7 @@ async def receive_websocket_data(uri, initial_message):
         print(f"Could not connect to WebSocket at {uri}: {e}")
 
 
-async def update_dataframe_task(seconds=5):
+async def update_dataframe_task(seconds=5, num_samples=False):
     """Periodically takes data from the queue and updates the DataFrame."""
     global current_df_async, records_buffer
 
@@ -62,6 +63,15 @@ async def update_dataframe_task(seconds=5):
             records_buffer.clear() # Clear the buffer after copying
 
             new_df_segment = pd.DataFrame(records_to_process)
+
+            # Sample the dataframe, since the websocket gives too much information
+            if num_samples:
+                # Calculate evenly spaced indices
+                evenly_spaced_indices = np.linspace(0, len(new_df_segment) - 1, num_samples).astype(int)
+
+                # Select rows from the DataFrame using these indices
+                new_df_segment = new_df_segment.iloc[evenly_spaced_indices]
+
 
             async with df_lock_async: # Acquire async lock
                 if current_df_async.empty:
@@ -105,7 +115,7 @@ async def main_async(initial_message):
 
     # Start the WebSocket client and DataFrame updater as concurrent tasks
     consumer_task = asyncio.create_task(receive_websocket_data(websocket_uri_ws, initial_message))
-    updater_task = asyncio.create_task(update_dataframe_task(seconds=5))
+    updater_task = asyncio.create_task(update_dataframe_task(seconds=5, num_samples=5))
 
     # Keep the event loop running
     await asyncio.gather(consumer_task, updater_task)
