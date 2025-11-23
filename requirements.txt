@@ -1,0 +1,7 @@
+os
+dotenv
+urllib
+asyncio
+websockets
+json
+panda
